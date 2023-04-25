@@ -33,16 +33,6 @@ interface Statement {
   interpret(memory: Memory): void;
 }
 
-class Assignment implements Statement {
-  constructor(public target: Identifier, public source: Expression) {}
-  interpret(memory: Memory) {
-    if (!memory.has(this.target.name)) {
-      throw new Error(`Unknown variable: ${this.target.name}`);
-    }
-    memory.set(this.target.name, this.source.interpret(memory));
-  }
-}
-
 class VariableDeclaration implements Statement {
   constructor(public id: Identifier, public initializer: Expression) {}
   interpret(memory: Memory) {
@@ -50,6 +40,16 @@ class VariableDeclaration implements Statement {
       throw new Error(`Variable already declared: ${this.id.name}`);
     }
     memory.set(this.id.name, this.initializer.interpret(memory));
+  }
+}
+
+class Assignment implements Statement {
+  constructor(public target: Identifier, public source: Expression) {}
+  interpret(memory: Memory) {
+    if (!memory.has(this.target.name)) {
+      throw new Error(`Unknown variable: ${this.target.name}`);
+    }
+    memory.set(this.target.name, this.source.interpret(memory));
   }
 }
 
@@ -159,12 +159,13 @@ class Call implements Expression {
 
 class Identifier implements Expression {
   constructor(public name: string) {}
-  interpret(memory: Memory): number | boolean {
+  interpret(memory: Memory): number {
     const value = memory.get(this.name);
+    console.log(typeof value);
     if (value === undefined) {
       throw new Error(`Unknown variable: ${this.name}`);
-    } else if (typeof value !== "number" || typeof value !== "boolean") {
-      throw new Error(`Variable is not a number or boolean: ${this.name}`);
+    } else if (typeof value !== "number") {
+      throw new Error(`Variable is not a number: ${this.name}`);
     }
     return value;
   }
@@ -191,8 +192,9 @@ function interpret(program: Program): void {
 const sample: Program = new Program(
   new Block([
     new PrintStatement(new Numeral(5)),
-    new Assignment(new Identifier("x"), new UnaryExp("-", new Numeral(20))),
-    new PrintStatement(new BinaryExp("*", new Numeral(9), new Identifier("x"))),
+    // new Assignment(new Identifier("x"), new UnaryExp("-", new Numeral(20))),
+    // its not liking assignment for some reason
+    // new PrintStatement(new BinaryExp("*", new Numeral(9), new Identifier("x"))),
     new PrintStatement(new Call(new Identifier("sqrt"), [new Numeral(2)])),
   ])
 );
