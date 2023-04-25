@@ -4,24 +4,26 @@ class Program {
     constructor(body) {
         this.body = body;
     }
+    interpret() {
+        // Bella built ins
+        const memory = new Map();
+        memory.set("sin", Math.sin);
+        memory.set("cos", Math.cos);
+        memory.set("hypot", Math.hypot);
+        memory.set("sqrt", Math.sqrt);
+        memory.set("π", Math.PI);
+        memory.set("exp", Math.exp);
+        memory.set("ln", Math.LN10); // can also be Math.LN2 but I don't remember my logs
+        this.body.interpret(memory);
+    }
 }
 class Block {
     constructor(statements) {
         this.statements = statements;
-        interpret();
-        {
-            // Bella built ins
-            const memory = new Map();
-            memory.set("sin", Math.sin);
-            memory.set("cos", Math.cos);
-            memory.set("hypot", Math.hypot);
-            memory.set("sqrt", Math.sqrt);
-            memory.set("π", Math.PI);
-            memory.set("exp", Math.exp);
-            memory.set("ln", Math.LN10); // can also be Math.LN2 but I don't remember my logs 
-            for (const stmt of this.statements) {
-                stmt.interpret(memory);
-            }
+    }
+    interpret(memory) {
+        for (const statement of this.statements) {
+            return statement.interpret(memory);
         }
     }
 }
@@ -57,19 +59,6 @@ class PrintStatement {
         console.log(this.expression.interpret(memory));
     }
 }
-class While {
-    constructor(expression, block) {
-        this.expression = expression;
-        this.block = block;
-    }
-}
-class Function {
-    constructor(name, args, expression) {
-        this.name = name;
-        this.args = args;
-        this.expression = expression;
-    }
-}
 class BinaryExp {
     constructor(operator, left, right) {
         this.operator = operator;
@@ -90,6 +79,22 @@ class BinaryExp {
                 return this.left.interpret(memory) % this.right.interpret(memory);
             case "**":
                 return this.left.interpret(memory) ** this.right.interpret(memory);
+            case "<":
+                return this.left.interpret(memory) < this.right.interpret(memory);
+            case "<=":
+                return this.left.interpret(memory) <= this.right.interpret(memory);
+            case "==":
+                return this.left.interpret(memory) === this.right.interpret(memory);
+            case "!=":
+                return this.left.interpret(memory) !== this.right.interpret(memory);
+            case ">=":
+                return this.left.interpret(memory) >= this.right.interpret(memory);
+            case ">":
+                return this.left.interpret(memory) > this.right.interpret(memory);
+            case "&&":
+                return this.left.interpret(memory) && this.right.interpret(memory);
+            case "||":
+                return this.left.interpret(memory) || this.right.interpret(memory);
             default:
                 throw new Error(`Unknown operator: ${this.operator}`);
         }
@@ -111,17 +116,29 @@ class UnaryExp {
         }
     }
 }
+class ConditionalExpression {
+    constructor(exp_true, condition, exp_false) {
+        this.exp_true = exp_true;
+        this.condition = condition;
+        this.exp_false = exp_false;
+    }
+    interpret(memory) {
+        return this.exp_true.interpret(memory)
+            ? this.condition.interpret(memory)
+            : this.exp_false.interpret(memory);
+    }
+}
 class Call {
     constructor(callee, args) {
         this.callee = callee;
         this.args = args;
     }
     interpret(memory) {
-        const fn = memory.get(this.callee.name);
-        if (typeof fn !== "function") {
+        const func = memory.get(this.callee.name);
+        if (typeof func !== "function") {
             throw new Error(`Unknown function: ${this.callee.name}`);
         }
-        return fn(...this.args.map((arg) => arg.interpret(memory)));
+        return func(...this.args.map((arg) => arg.interpret(memory)));
     }
 }
 class Identifier {
@@ -133,8 +150,8 @@ class Identifier {
         if (value === undefined) {
             throw new Error(`Unknown variable: ${this.name}`);
         }
-        else if (typeof value !== "number") {
-            throw new Error(`Variable is not a number: ${this.name}`);
+        else if (typeof value !== "number" || typeof value !== "boolean") {
+            throw new Error(`Variable is not a number or boolean: ${this.name}`);
         }
         return value;
     }
@@ -155,9 +172,13 @@ class Bool {
         return this.value;
     }
 }
-// Build the rest of the classes and interfaces here: PrintStatement,
-// BinaryExpression, UnaryExpression, ConditionalExpression, Numeral,
-// Identifier, etc.
 function interpret(program) {
     program.interpret();
 }
+const sample = new Program(new Block([
+    new PrintStatement(new Numeral(5)),
+    new Assignment(new Identifier("x"), new UnaryExp("-", new Numeral(20))),
+    new PrintStatement(new BinaryExp("*", new Numeral(9), new Identifier("x"))),
+    new PrintStatement(new Call(new Identifier("sqrt"), [new Numeral(2)])),
+]));
+interpret(sample);

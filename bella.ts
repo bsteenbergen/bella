@@ -5,11 +5,6 @@ type Memory = Map<string, Value>;
 
 class Program {
   constructor(public body: Block) {}
-  // interpret(memory: Memory): void;
-}
-
-class Block {
-  constructor(public statements: Statement[]) {
   interpret() {
     // Bella built ins
     const memory = new Map();
@@ -19,16 +14,23 @@ class Block {
     memory.set("sqrt", Math.sqrt);
     memory.set("π", Math.PI);
     memory.set("exp", Math.exp);
-    memory.set("ln", Math.LN10); // can also be Math.LN2 but I don't remember my logs 
+    memory.set("ln", Math.LN10); // can also be Math.LN2 but I don't remember my logs
 
-    for (const stmt of this.statements) {
-        stmt.interpret(memory);
+    this.body.interpret(memory);
+  }
+}
+
+class Block {
+  constructor(public statements: Statement[]) {}
+  interpret(memory: Memory) {
+    for (const statement of this.statements) {
+      return statement.interpret(memory);
     }
   }
 }
 
-interface Statement {  
-    interpret(memory: Memory): void;
+interface Statement {
+  interpret(memory: Memory): void;
 }
 
 class Assignment implements Statement {
@@ -52,106 +54,147 @@ class VariableDeclaration implements Statement {
 }
 
 class PrintStatement implements Statement {
-    constructor(public expression: Expression) {}
-    interpret(memory: Memory) {
-      console.log(this.expression.interpret(memory));
-    }
+  constructor(public expression: Expression) {}
+  interpret(memory: Memory) {
+    console.log(this.expression.interpret(memory));
+  }
 }
 
-class While implements Statement {
-    constructor(public expression: Expression, public block: Block) {}
-}
+// class While implements Statement {
+//   constructor(public expression: Expression, public block: Block) {}
+// }
 
-class Function implements Statement {
-    constructor(public name: Identifier, public args: Expression[], public expression: Expression) {}
-}
+// class Function implements Statement {
+//   constructor(
+//     public name: Identifier,
+//     public args: Expression[],
+//     public expression: Expression
+//   ) {}
+// }
 
 interface Expression {
-    interpret(memory: Memory): any; //changed this to any since it can be a boolean or a number- don't know if that was the right call
+  interpret(memory: Memory): any; //changed this to any since it can be a boolean or a number- don't know if that was the right call
 }
 
 class BinaryExp implements Expression {
-    constructor(
-      public operator: string,
-      public left: Expression,
-      public right: Expression
-    ) {}
-    
-    interpret(memory: Memory): number { 
-      switch (this.operator) {
-        case "+":
-          return this.left.interpret(memory) + this.right.interpret(memory);
-        case "-":
-          return this.left.interpret(memory) - this.right.interpret(memory);
-        case "*":
-          return this.left.interpret(memory) * this.right.interpret(memory);
-        case "/":
-          return this.left.interpret(memory) / this.right.interpret(memory);
-        case "%":
-          return this.left.interpret(memory) % this.right.interpret(memory);
-        case "**":
-          return this.left.interpret(memory) ** this.right.interpret(memory);
-        default:
-          throw new Error(`Unknown operator: ${this.operator}`);
-      }
+  constructor(
+    public operator: string,
+    public left: Expression,
+    public right: Expression
+  ) {}
+
+  interpret(memory: Memory): number | boolean {
+    switch (this.operator) {
+      case "+":
+        return this.left.interpret(memory) + this.right.interpret(memory);
+      case "-":
+        return this.left.interpret(memory) - this.right.interpret(memory);
+      case "*":
+        return this.left.interpret(memory) * this.right.interpret(memory);
+      case "/":
+        return this.left.interpret(memory) / this.right.interpret(memory);
+      case "%":
+        return this.left.interpret(memory) % this.right.interpret(memory);
+      case "**":
+        return this.left.interpret(memory) ** this.right.interpret(memory);
+      case "<":
+        return this.left.interpret(memory) < this.right.interpret(memory);
+      case "<=":
+        return this.left.interpret(memory) <= this.right.interpret(memory);
+      case "==":
+        return this.left.interpret(memory) === this.right.interpret(memory);
+      case "!=":
+        return this.left.interpret(memory) !== this.right.interpret(memory);
+      case ">=":
+        return this.left.interpret(memory) >= this.right.interpret(memory);
+      case ">":
+        return this.left.interpret(memory) > this.right.interpret(memory);
+      case "&&":
+        return this.left.interpret(memory) && this.right.interpret(memory);
+      case "||":
+        return this.left.interpret(memory) || this.right.interpret(memory);
+      default:
+        throw new Error(`Unknown operator: ${this.operator}`);
     }
   }
-  
-  class UnaryExp implements Expression {
-    constructor(public operator: string, public operand: Expression) {}
-    interpret(memory: Memory): number | boolean {
-      switch (this.operator) {
-        case "-":
-          return -this.operand.interpret(memory);
-        case "!":
-          return !this.operand.interpret(memory);
-        default:
-          throw new Error(`Unknown operator: ${this.operator}`);
-      }
+}
+
+class UnaryExp implements Expression {
+  constructor(public operator: string, public operand: Expression) {}
+  interpret(memory: Memory): number | boolean {
+    switch (this.operator) {
+      case "-":
+        return -this.operand.interpret(memory);
+      case "!":
+        return !this.operand.interpret(memory);
+      default:
+        throw new Error(`Unknown operator: ${this.operator}`);
     }
   }
-  
-  class Call implements Expression {
-    constructor(public callee: Identifier, public args: Expression[]) {}
-    interpret(memory: Memory): number {
-      const fn = memory.get(this.callee.name);
-      if (typeof fn !== "function") {
-        throw new Error(`Unknown function: ${this.callee.name}`);
-      }
-      return fn(...this.args.map((arg) => arg.interpret(memory)));
-    }
+}
+
+class ConditionalExpression implements Expression {
+  constructor(
+    public exp_true: Expression,
+    public condition: Expression,
+    public exp_false: Expression
+  ) {}
+  interpret(memory: Memory): number | boolean {
+    return this.exp_true.interpret(memory)
+      ? this.condition.interpret(memory)
+      : this.exp_false.interpret(memory);
   }
+}
+
+class Call implements Expression {
+  constructor(public callee: Identifier, public args: Expression[]) {}
+  interpret(memory: Memory): number {
+    const func = memory.get(this.callee.name);
+    if (typeof func !== "function") {
+      throw new Error(`Unknown function: ${this.callee.name}`);
+    }
+    return func(...this.args.map((arg) => arg.interpret(memory)));
+  }
+}
 
 class Identifier implements Expression {
-    constructor(public name: string) {}
-    interpret(memory: Memory): number {
-      const value = memory.get(this.name);
-      if (value === undefined) {
-        throw new Error(`Unknown variable: ${this.name}`);
-      } else if (typeof value !== "number") {
-        throw new Error(`Variable is not a number: ${this.name}`);
-      }
-      return value;
+  constructor(public name: string) {}
+  interpret(memory: Memory): number | boolean {
+    const value = memory.get(this.name);
+    if (value === undefined) {
+      throw new Error(`Unknown variable: ${this.name}`);
+    } else if (typeof value !== "number" || typeof value !== "boolean") {
+      throw new Error(`Variable is not a number or boolean: ${this.name}`);
     }
+    return value;
   }
+}
 
-  class Numeral implements Expression {
-    constructor(public value: number) {}
-    interpret() {
-      return this.value;
-    }
+class Numeral implements Expression {
+  constructor(public value: number) {}
+  interpret() {
+    return this.value;
   }
+}
 
-  class Bool implements Expression {
-    constructor(public value: boolean ) {}
-    interpret() {
-      return this.value;
-    }
+class Bool implements Expression {
+  constructor(public value: boolean) {}
+  interpret() {
+    return this.value;
   }
-// Build the rest of the classes and interfaces here: PrintStatement,
-// BinaryExpression, UnaryExpression, ConditionalExpression, Numeral,
-// Identifier, etc.
+}
 
 function interpret(program: Program): void {
-    program.interpret();
+  program.interpret();
 }
+
+const sample: Program = new Program(
+  new Block([
+    new PrintStatement(new Numeral(5)),
+    new Assignment(new Identifier("x"), new UnaryExp("-", new Numeral(20))),
+    new PrintStatement(new BinaryExp("*", new Numeral(9), new Identifier("x"))),
+    new PrintStatement(new Call(new Identifier("sqrt"), [new Numeral(2)])),
+  ])
+);
+
+interpret(sample);
