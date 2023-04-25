@@ -10,15 +10,15 @@ class Block {
         this.statements = statements;
         interpret();
         {
-            // First part of interpreting programs is to "load up" the memory
-            // with the built-in functions and constants.
+            // Bella built ins
             const memory = new Map();
             memory.set("sin", Math.sin);
             memory.set("cos", Math.cos);
             memory.set("hypot", Math.hypot);
             memory.set("sqrt", Math.sqrt);
             memory.set("π", Math.PI);
-            // Once the standard library is loaded, the real interpretation begins.
+            memory.set("exp", Math.exp);
+            memory.set("ln", Math.LN10); // can also be Math.LN2 but I don't remember my logs 
             for (const stmt of this.statements) {
                 stmt.interpret(memory);
             }
@@ -57,6 +57,73 @@ class PrintStatement {
         console.log(this.expression.interpret(memory));
     }
 }
+class While {
+    constructor(expression, block) {
+        this.expression = expression;
+        this.block = block;
+    }
+}
+class Function {
+    constructor(name, args, expression) {
+        this.name = name;
+        this.args = args;
+        this.expression = expression;
+    }
+}
+class BinaryExp {
+    constructor(operator, left, right) {
+        this.operator = operator;
+        this.left = left;
+        this.right = right;
+    }
+    interpret(memory) {
+        switch (this.operator) {
+            case "+":
+                return this.left.interpret(memory) + this.right.interpret(memory);
+            case "-":
+                return this.left.interpret(memory) - this.right.interpret(memory);
+            case "*":
+                return this.left.interpret(memory) * this.right.interpret(memory);
+            case "/":
+                return this.left.interpret(memory) / this.right.interpret(memory);
+            case "%":
+                return this.left.interpret(memory) % this.right.interpret(memory);
+            case "**":
+                return this.left.interpret(memory) ** this.right.interpret(memory);
+            default:
+                throw new Error(`Unknown operator: ${this.operator}`);
+        }
+    }
+}
+class UnaryExp {
+    constructor(operator, operand) {
+        this.operator = operator;
+        this.operand = operand;
+    }
+    interpret(memory) {
+        switch (this.operator) {
+            case "-":
+                return -this.operand.interpret(memory);
+            case "!":
+                return !this.operand.interpret(memory);
+            default:
+                throw new Error(`Unknown operator: ${this.operator}`);
+        }
+    }
+}
+class Call {
+    constructor(callee, args) {
+        this.callee = callee;
+        this.args = args;
+    }
+    interpret(memory) {
+        const fn = memory.get(this.callee.name);
+        if (typeof fn !== "function") {
+            throw new Error(`Unknown function: ${this.callee.name}`);
+        }
+        return fn(...this.args.map((arg) => arg.interpret(memory)));
+    }
+}
 class Identifier {
     constructor(name) {
         this.name = name;
@@ -73,6 +140,14 @@ class Identifier {
     }
 }
 class Numeral {
+    constructor(value) {
+        this.value = value;
+    }
+    interpret() {
+        return this.value;
+    }
+}
+class Bool {
     constructor(value) {
         this.value = value;
     }
