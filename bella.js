@@ -127,9 +127,12 @@ class ConditionalExpression {
         this.exp_false = exp_false;
     }
     interpret(memory) {
-        return this.exp_true.interpret(memory)
-            ? this.condition.interpret(memory)
-            : this.exp_false.interpret(memory);
+        if (this.condition.interpret(memory)) {
+            return this.exp_true.interpret(memory);
+        }
+        else {
+            return this.exp_false.interpret(memory);
+        }
     }
 }
 class Call {
@@ -184,5 +187,11 @@ const sample = new Program(new Block([
     new Assignment(new Identifier("x"), new UnaryExp("-", new Numeral(20))),
     new PrintStatement(new BinaryExp("*", new Numeral(9), new Identifier("x"))),
     new PrintStatement(new Call(new Identifier("sqrt"), [new Numeral(2)])),
+    new PrintStatement(new ConditionalExpression(new Numeral(1), new BinaryExp("<", new Numeral(3), new Numeral(2)), new Numeral(0))),
+    new VariableDeclaration(new Identifier("y"), new Numeral(0)),
+    // new While(
+    //   new BinaryExp(">", new Numeral(2), new Identifier("y")),
+    //   new Block([new BinaryExp("+", new Numeral(1), new Identifier("y"))])
+    // ),
 ]));
 interpret(sample);
