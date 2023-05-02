@@ -1,13 +1,18 @@
 // An interpreter for the Language Bella
 
-type Value = number | boolean | ((...args: number[]) => number);
-type Memory = Map<string, Value>;
+type Value =
+  | number
+  | boolean
+  | Value[]
+  | ((...args: number[]) => Value)
+  | [Identifier[], Expression];
+
+let memory = new Map<string, Value>();
 
 class Program {
   constructor(public body: Block) {}
   interpret() {
     // Bella built ins
-    const memory = new Map();
     memory.set("sin", Math.sin);
     memory.set("cos", Math.cos);
     memory.set("hypot", Math.hypot);
@@ -15,78 +20,76 @@ class Program {
     memory.set("π", Math.PI);
     memory.set("exp", Math.exp);
     memory.set("ln", Math.LN10); // can also be Math.LN2 but I don't remember my logs
-
-    this.body.interpret(memory);
+    return this.body.interpret();
   }
 }
 
 class Block {
   constructor(public statements: Statement[]) {}
-  interpret(memory: Memory) {
+  interpret() {
     for (const statement of this.statements) {
-      statement.interpret(memory);
+      statement.interpret();
     }
   }
 }
 
 interface Statement {
-  interpret(memory: Memory): void;
+  interpret(): void;
 }
 
 class VariableDeclaration implements Statement {
   constructor(public id: Identifier, public initializer: Expression) {}
-  interpret(memory: Memory) {
-    // console.log(memory);
+  interpret(): void {
     if (memory.has(this.id.name)) {
       throw new Error(`Variable already declared: ${this.id.name}`);
     }
-    memory.set(this.id.name, this.initializer.interpret(memory));
-    // console.log(memory);
+    memory.set(this.id.name, this.initializer.interpret());
   }
 }
 
 class Assignment implements Statement {
   constructor(public target: Identifier, public source: Expression) {}
-  interpret(memory: Memory) {
-    // console.log(memory);
+  interpret(): void {
     if (!memory.has(this.target.name)) {
       throw new Error(`Unknown variable: ${this.target.name}`);
     }
-    memory.set(this.target.name, this.source.interpret(memory));
-    // console.log(memory);
+    memory.set(this.target.name, this.source.interpret());
   }
 }
 
 class PrintStatement implements Statement {
   constructor(public expression: Expression) {}
-  interpret(memory: Memory) {
-    console.log(this.expression.interpret(memory));
+  interpret(): void {
+    console.log(this.expression.interpret());
   }
 }
 
-// class While implements Statement {
-//   constructor(public expression: Expression, public block: Block) {}
-//   interpret(memory: Memory): void {
-//     function loop(exp: Expression, block: Block) {
-//       if (exp.interpret(memory)) {
-//         block.interpret(memory);
-//         loop(exp.interpret(memory), block);
-//       }
-//     }
-//     loop(this.expression, this.block);
-//   }
-// }
+class While implements Statement {
+  constructor(public expression: Expression, public block: Block) {}
+  interpret(): void {
+    while (this.expression.interpret()) {
+      this.block.interpret();
+    }
+  }
+}
 
-// class Function implements Statement {
-//   constructor(
-//     public name: Identifier,
-//     public args: Expression[],
-//     public expression: Expression
-//   ) {}
-// }
+class FunctionStatement implements Statement {
+  constructor(
+    public id: Identifier,
+    public args: Expression[],
+    public expression: Expression
+  ) {}
+
+  interpret(): void {
+    memory.set(this.id.name, [
+      this.args.map((arg) => arg as Identifier),
+      this.expression,
+    ]);
+  }
+}
 
 interface Expression {
-  interpret(memory: Memory): any; //changed this to any since it can be a boolean or a number- don't know if that was the right call
+  interpret(): Value;
 }
 
 class BinaryExp implements Expression {
@@ -96,36 +99,44 @@ class BinaryExp implements Expression {
     public right: Expression
   ) {}
 
-  interpret(memory: Memory): number | boolean {
+  interpret(): Value {
+    const left = this.left.interpret();
+    const right = this.right.interpret();
+    if (typeof left !== "number" || typeof right !== "number") {
+      throw new Error("Must be a number to use arithmetic operations");
+    } else {
+      switch (this.operator) {
+        case "+":
+          return left + right;
+        case "-":
+          return left - right;
+        case "*":
+          return left * right;
+        case "/":
+          return left / right;
+        case "%":
+          return left % right;
+        case "**":
+          return left ** right;
+      }
+    }
     switch (this.operator) {
-      case "+":
-        return this.left.interpret(memory) + this.right.interpret(memory);
-      case "-":
-        return this.left.interpret(memory) - this.right.interpret(memory);
-      case "*":
-        return this.left.interpret(memory) * this.right.interpret(memory);
-      case "/":
-        return this.left.interpret(memory) / this.right.interpret(memory);
-      case "%":
-        return this.left.interpret(memory) % this.right.interpret(memory);
-      case "**":
-        return this.left.interpret(memory) ** this.right.interpret(memory);
       case "<":
-        return this.left.interpret(memory) < this.right.interpret(memory);
+        return left < right;
       case "<=":
-        return this.left.interpret(memory) <= this.right.interpret(memory);
+        return left <= right;
       case "==":
-        return this.left.interpret(memory) === this.right.interpret(memory);
+        return left === right;
       case "!=":
-        return this.left.interpret(memory) !== this.right.interpret(memory);
+        return left !== right;
       case ">=":
-        return this.left.interpret(memory) >= this.right.interpret(memory);
+        return left >= right;
       case ">":
-        return this.left.interpret(memory) > this.right.interpret(memory);
+        return left > right;
       case "&&":
-        return this.left.interpret(memory) && this.right.interpret(memory);
+        return left && right;
       case "||":
-        return this.left.interpret(memory) || this.right.interpret(memory);
+        return left || right;
       default:
         throw new Error(`Unknown operator: ${this.operator}`);
     }
@@ -134,12 +145,12 @@ class BinaryExp implements Expression {
 
 class UnaryExp implements Expression {
   constructor(public operator: string, public operand: Expression) {}
-  interpret(memory: Memory): number | boolean {
+  interpret(): Value {
     switch (this.operator) {
       case "-":
-        return -this.operand.interpret(memory);
+        return -this.operand.interpret();
       case "!":
-        return !this.operand.interpret(memory);
+        return !this.operand.interpret();
       default:
         throw new Error(`Unknown operator: ${this.operator}`);
     }
@@ -148,33 +159,53 @@ class UnaryExp implements Expression {
 
 class ConditionalExpression implements Expression {
   constructor(
-    public exp_true: Expression,
-    public condition: Expression,
-    public exp_false: Expression
+    public test: Expression,
+    public consequent: Expression,
+    public alternate: Expression
   ) {}
-  interpret(memory: Memory): number | boolean {
-    if (this.condition.interpret(memory)) {
-      return this.exp_true.interpret(memory);
-    } else {
-      return this.exp_false.interpret(memory);
-    }
+  interpret(): Value {
+    return this.test.interpret()
+      ? this.consequent.interpret()
+      : this.alternate.interpret();
   }
 }
 
 class Call implements Expression {
   constructor(public callee: Identifier, public args: Expression[]) {}
-  interpret(memory: Memory): number {
-    const func = memory.get(this.callee.name);
-    if (typeof func !== "function") {
-      throw new Error(`Unknown function: ${this.callee.name}`);
+  interpret(): Value {
+    const functionValue = memory.get(this.callee.name);
+    if (typeof functionValue !== "function") {
+      throw new Error(`Value is not a function: ${this.callee.name}`);
     }
-    return func(...this.args.map((arg) => arg.interpret(memory)));
+    return functionValue(this.args.map((arg) => arg.interpret()));
+  }
+}
+
+class ArrayLiteral implements Expression {
+  constructor(public elements: Expression[]) {}
+  interpret(): Value {
+    return this.elements.map((e) => e.interpret());
+  }
+}
+
+class Subscript implements Expression {
+  constructor(public array: Expression, public subscript: Expression) {}
+  interpret(): Value {
+    const arrayValue = this.array.interpret();
+    const subscriptValue = this.subscript.interpret();
+    if (!Array.isArray(arrayValue)) {
+      throw new Error("Subscripted item must be an array");
+    }
+    if (typeof subscriptValue !== "number") {
+      throw new Error("Subscript value must be a number");
+    }
+    return arrayValue[subscriptValue];
   }
 }
 
 class Identifier implements Expression {
   constructor(public name: string) {}
-  interpret(memory: Memory): number | boolean {
+  interpret(): Value {
     const value = memory.get(this.name);
     if (value === undefined) {
       throw new Error(`Unknown variable: ${this.name}`);
@@ -187,17 +218,19 @@ class Identifier implements Expression {
 
 class Numeral implements Expression {
   constructor(public value: number) {}
-  interpret() {
+  interpret(): Value {
     return this.value;
   }
 }
 
 class Bool implements Expression {
   constructor(public value: boolean) {}
-  interpret() {
+  interpret(): Value {
     return this.value;
   }
 }
+
+// Run the interpreter
 
 function interpret(program: Program): void {
   program.interpret();
@@ -211,16 +244,34 @@ const sample: Program = new Program(
     new PrintStatement(new Call(new Identifier("sqrt"), [new Numeral(2)])),
     new PrintStatement(
       new ConditionalExpression(
-        new Numeral(1),
         new BinaryExp("<", new Numeral(3), new Numeral(2)),
+        new Numeral(1),
         new Numeral(0)
       )
     ),
+
+    // While test
     new VariableDeclaration(new Identifier("y"), new Numeral(0)),
-    // new While(
-    //   new BinaryExp(">", new Numeral(2), new Identifier("y")),
-    //   new Block([new BinaryExp("+", new Numeral(1), new Identifier("y"))])
-    // ),
+    new While(
+      new BinaryExp(">", new Numeral(10), new Identifier("y")),
+      new Block([
+        new Assignment(
+          new Identifier("y"),
+          new BinaryExp("+", new Numeral(1), new Identifier("y"))
+        ),
+      ])
+    ),
+    new PrintStatement(new Identifier("y")),
+
+    // FunctionStatement test
+    new VariableDeclaration(new Identifier("i"), new Numeral(0)),
+    new FunctionStatement(
+      new Identifier("plusFour"),
+      [new Identifier("i")],
+      new BinaryExp("+", new Identifier("z"), new Numeral(4))
+    ),
+    new Call(new Identifier("plusFour"), [new Identifier("i")]),
+    new PrintStatement(new Identifier("i")),
   ])
 );
 

@@ -1,12 +1,12 @@
 "use strict";
 // An interpreter for the Language Bella
+let memory = new Map();
 class Program {
     constructor(body) {
         this.body = body;
     }
     interpret() {
         // Bella built ins
-        const memory = new Map();
         memory.set("sin", Math.sin);
         memory.set("cos", Math.cos);
         memory.set("hypot", Math.hypot);
@@ -14,16 +14,16 @@ class Program {
         memory.set("π", Math.PI);
         memory.set("exp", Math.exp);
         memory.set("ln", Math.LN10); // can also be Math.LN2 but I don't remember my logs
-        this.body.interpret(memory);
+        return this.body.interpret();
     }
 }
 class Block {
     constructor(statements) {
         this.statements = statements;
     }
-    interpret(memory) {
+    interpret() {
         for (const statement of this.statements) {
-            statement.interpret(memory);
+            statement.interpret();
         }
     }
 }
@@ -32,13 +32,11 @@ class VariableDeclaration {
         this.id = id;
         this.initializer = initializer;
     }
-    interpret(memory) {
-        // console.log(memory);
+    interpret() {
         if (memory.has(this.id.name)) {
             throw new Error(`Variable already declared: ${this.id.name}`);
         }
-        memory.set(this.id.name, this.initializer.interpret(memory));
-        // console.log(memory);
+        memory.set(this.id.name, this.initializer.interpret());
     }
 }
 class Assignment {
@@ -46,21 +44,43 @@ class Assignment {
         this.target = target;
         this.source = source;
     }
-    interpret(memory) {
-        // console.log(memory);
+    interpret() {
         if (!memory.has(this.target.name)) {
             throw new Error(`Unknown variable: ${this.target.name}`);
         }
-        memory.set(this.target.name, this.source.interpret(memory));
-        // console.log(memory);
+        memory.set(this.target.name, this.source.interpret());
     }
 }
 class PrintStatement {
     constructor(expression) {
         this.expression = expression;
     }
-    interpret(memory) {
-        console.log(this.expression.interpret(memory));
+    interpret() {
+        console.log(this.expression.interpret());
+    }
+}
+class While {
+    constructor(expression, block) {
+        this.expression = expression;
+        this.block = block;
+    }
+    interpret() {
+        while (this.expression.interpret()) {
+            this.block.interpret();
+        }
+    }
+}
+class FunctionStatement {
+    constructor(id, args, expression) {
+        this.id = id;
+        this.args = args;
+        this.expression = expression;
+    }
+    interpret() {
+        memory.set(this.id.name, [
+            this.args.map((arg) => arg),
+            this.expression,
+        ]);
     }
 }
 class BinaryExp {
@@ -69,36 +89,45 @@ class BinaryExp {
         this.left = left;
         this.right = right;
     }
-    interpret(memory) {
+    interpret() {
+        const left = this.left.interpret();
+        const right = this.right.interpret();
+        if (typeof left !== "number" || typeof right !== "number") {
+            throw new Error("Must be a number to use arithmetic operations");
+        }
+        else {
+            switch (this.operator) {
+                case "+":
+                    return left + right;
+                case "-":
+                    return left - right;
+                case "*":
+                    return left * right;
+                case "/":
+                    return left / right;
+                case "%":
+                    return left % right;
+                case "**":
+                    return left ** right;
+            }
+        }
         switch (this.operator) {
-            case "+":
-                return this.left.interpret(memory) + this.right.interpret(memory);
-            case "-":
-                return this.left.interpret(memory) - this.right.interpret(memory);
-            case "*":
-                return this.left.interpret(memory) * this.right.interpret(memory);
-            case "/":
-                return this.left.interpret(memory) / this.right.interpret(memory);
-            case "%":
-                return this.left.interpret(memory) % this.right.interpret(memory);
-            case "**":
-                return this.left.interpret(memory) ** this.right.interpret(memory);
             case "<":
-                return this.left.interpret(memory) < this.right.interpret(memory);
+                return left < right;
             case "<=":
-                return this.left.interpret(memory) <= this.right.interpret(memory);
+                return left <= right;
             case "==":
-                return this.left.interpret(memory) === this.right.interpret(memory);
+                return left === right;
             case "!=":
-                return this.left.interpret(memory) !== this.right.interpret(memory);
+                return left !== right;
             case ">=":
-                return this.left.interpret(memory) >= this.right.interpret(memory);
+                return left >= right;
             case ">":
-                return this.left.interpret(memory) > this.right.interpret(memory);
+                return left > right;
             case "&&":
-                return this.left.interpret(memory) && this.right.interpret(memory);
+                return left && right;
             case "||":
-                return this.left.interpret(memory) || this.right.interpret(memory);
+                return left || right;
             default:
                 throw new Error(`Unknown operator: ${this.operator}`);
         }
@@ -109,30 +138,27 @@ class UnaryExp {
         this.operator = operator;
         this.operand = operand;
     }
-    interpret(memory) {
+    interpret() {
         switch (this.operator) {
             case "-":
-                return -this.operand.interpret(memory);
+                return -this.operand.interpret();
             case "!":
-                return !this.operand.interpret(memory);
+                return !this.operand.interpret();
             default:
                 throw new Error(`Unknown operator: ${this.operator}`);
         }
     }
 }
 class ConditionalExpression {
-    constructor(exp_true, condition, exp_false) {
-        this.exp_true = exp_true;
-        this.condition = condition;
-        this.exp_false = exp_false;
+    constructor(test, consequent, alternate) {
+        this.test = test;
+        this.consequent = consequent;
+        this.alternate = alternate;
     }
-    interpret(memory) {
-        if (this.condition.interpret(memory)) {
-            return this.exp_true.interpret(memory);
-        }
-        else {
-            return this.exp_false.interpret(memory);
-        }
+    interpret() {
+        return this.test.interpret()
+            ? this.consequent.interpret()
+            : this.alternate.interpret();
     }
 }
 class Call {
@@ -140,19 +166,44 @@ class Call {
         this.callee = callee;
         this.args = args;
     }
-    interpret(memory) {
-        const func = memory.get(this.callee.name);
-        if (typeof func !== "function") {
-            throw new Error(`Unknown function: ${this.callee.name}`);
+    interpret() {
+        const functionValue = memory.get(this.callee.name);
+        if (typeof functionValue !== "function") {
+            throw new Error(`Value is not a function: ${this.callee.name}`);
         }
-        return func(...this.args.map((arg) => arg.interpret(memory)));
+        return functionValue(this.args.map((arg) => arg.interpret()));
+    }
+}
+class ArrayLiteral {
+    constructor(elements) {
+        this.elements = elements;
+    }
+    interpret() {
+        return this.elements.map((e) => e.interpret());
+    }
+}
+class Subscript {
+    constructor(array, subscript) {
+        this.array = array;
+        this.subscript = subscript;
+    }
+    interpret() {
+        const arrayValue = this.array.interpret();
+        const subscriptValue = this.subscript.interpret();
+        if (!Array.isArray(arrayValue)) {
+            throw new Error("Subscripted item must be an array");
+        }
+        if (typeof subscriptValue !== "number") {
+            throw new Error("Subscript value must be a number");
+        }
+        return arrayValue[subscriptValue];
     }
 }
 class Identifier {
     constructor(name) {
         this.name = name;
     }
-    interpret(memory) {
+    interpret() {
         const value = memory.get(this.name);
         if (value === undefined) {
             throw new Error(`Unknown variable: ${this.name}`);
@@ -179,6 +230,7 @@ class Bool {
         return this.value;
     }
 }
+// Run the interpreter
 function interpret(program) {
     program.interpret();
 }
@@ -187,11 +239,17 @@ const sample = new Program(new Block([
     new Assignment(new Identifier("x"), new UnaryExp("-", new Numeral(20))),
     new PrintStatement(new BinaryExp("*", new Numeral(9), new Identifier("x"))),
     new PrintStatement(new Call(new Identifier("sqrt"), [new Numeral(2)])),
-    new PrintStatement(new ConditionalExpression(new Numeral(1), new BinaryExp("<", new Numeral(3), new Numeral(2)), new Numeral(0))),
+    new PrintStatement(new ConditionalExpression(new BinaryExp("<", new Numeral(3), new Numeral(2)), new Numeral(1), new Numeral(0))),
+    // While test
     new VariableDeclaration(new Identifier("y"), new Numeral(0)),
-    // new While(
-    //   new BinaryExp(">", new Numeral(2), new Identifier("y")),
-    //   new Block([new BinaryExp("+", new Numeral(1), new Identifier("y"))])
-    // ),
+    new While(new BinaryExp(">", new Numeral(10), new Identifier("y")), new Block([
+        new Assignment(new Identifier("y"), new BinaryExp("+", new Numeral(1), new Identifier("y"))),
+    ])),
+    new PrintStatement(new Identifier("y")),
+    // FunctionStatement test
+    new VariableDeclaration(new Identifier("i"), new Numeral(0)),
+    new FunctionStatement(new Identifier("plusFour"), [new Identifier("i")], new BinaryExp("+", new Identifier("z"), new Numeral(4))),
+    new Call(new Identifier("plusFour"), [new Identifier("i")]),
+    new PrintStatement(new Identifier("i")),
 ]));
 interpret(sample);
