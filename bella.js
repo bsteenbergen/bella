@@ -1,4 +1,9 @@
-// An interpreter for the Language Bella
+function isUserDefinedFunction(v) {
+    return Array.isArray(v) && Array.isArray([0]);
+}
+function isBuiltInFunction(x) {
+    return typeof x === "function";
+}
 let memory = new Map();
 export let output = [];
 export class Program {
@@ -70,17 +75,14 @@ export class While {
         }
     }
 }
-export class FunctionStatement {
-    constructor(id, args, expression) {
+export class FunctionDeclaration {
+    constructor(id, params, expression) {
         this.id = id;
-        this.args = args;
+        this.params = params;
         this.expression = expression;
     }
     interpret() {
-        memory.set(this.id.name, [
-            this.args.map((arg) => arg),
-            this.expression,
-        ]);
+        memory.set(this.id.name, [this.params, this.expression]);
     }
 }
 export class BinaryExp {
@@ -92,23 +94,26 @@ export class BinaryExp {
     interpret() {
         const left = this.left.interpret();
         const right = this.right.interpret();
-        if (typeof left !== "number" || typeof right !== "number") {
-            throw new Error("Must be a number to use arithmetic operations");
-        }
-        else {
-            switch (this.operator) {
-                case "+":
-                    return left + right;
-                case "-":
-                    return left - right;
-                case "*":
-                    return left * right;
-                case "/":
-                    return left / right;
-                case "%":
-                    return left % right;
-                case "**":
-                    return left ** right;
+        const arithmeticOps = ["+", "-", "*", "/", "%", "**"];
+        if (arithmeticOps.includes(this.operator)) {
+            if (typeof left !== "number" || typeof right !== "number") {
+                throw new Error("Must be a number to use arithmetic operations");
+            }
+            else {
+                switch (this.operator) {
+                    case "+":
+                        return left + right;
+                    case "-":
+                        return left - right;
+                    case "*":
+                        return left * right;
+                    case "/":
+                        return left / right;
+                    case "%":
+                        return left % right;
+                    case "**":
+                        return left ** right;
+                }
             }
         }
         switch (this.operator) {
@@ -168,10 +173,29 @@ export class Call {
     }
     interpret() {
         const functionValue = memory.get(this.callee.name);
-        if (typeof functionValue !== "function") {
-            throw new Error(`Value is not a function: ${this.callee.name}`);
+        if (functionValue === undefined) {
+            throw new Error("Identifier was undeclared");
         }
-        return functionValue(this.args.map((arg) => arg.interpret()));
+        else if (isUserDefinedFunction(functionValue)) {
+            const [paramters, expression] = functionValue;
+            if (paramters.length !== this.args.length) {
+                throw new Error("Incorrect number of arguments");
+            }
+            const savedMemory = memory;
+            memory = new Map(savedMemory);
+            for (let i = 0; i < paramters.length; i++) {
+                memory.set(paramters[i].name, this.args[i].interpret());
+            }
+            const result = expression.interpret();
+            memory = savedMemory;
+            return result;
+        }
+        else if (isBuiltInFunction(functionValue)) {
+            return functionValue(this.args.map((arg) => arg.interpret()));
+        }
+        else {
+            throw new Error("Not a function");
+        }
     }
 }
 export class ArrayLiteral {
@@ -188,12 +212,12 @@ export class Subscript {
         this.subscript = subscript;
     }
     interpret() {
-        const arrayValue = this.array.interpret();
+        const arrayValue = this.array.map((e) => e.interpret());
         const subscriptValue = this.subscript.interpret();
         if (!Array.isArray(arrayValue)) {
             throw new Error("Subscripted item must be an array");
         }
-        if (typeof subscriptValue !== "number") {
+        else if (typeof subscriptValue !== "number") {
             throw new Error("Subscript value must be a number");
         }
         return arrayValue[subscriptValue];
@@ -232,44 +256,7 @@ export function interpret(program) {
     output = [];
     memory = new Map();
     const oldConsoleLog = console.log;
-    console.log == ((s) => output.push(s));
+    console.log = (s) => output.push(s);
     program.interpret();
     console.log = oldConsoleLog;
 }
-// const sample: Program = new Program(
-//   new Block([
-//     new VariableDeclaration(new Identifier("x"), new Numeral(100)),
-//     new Assignment(new Identifier("x"), new UnaryExp("-", new Numeral(20))),
-//     new PrintStatement(new BinaryExp("*", new Numeral(9), new Identifier("x"))),
-//     new PrintStatement(new Call(new Identifier("sqrt"), [new Numeral(2)])),
-//     new PrintStatement(
-//       new ConditionalExpression(
-//         new BinaryExp(">", new Numeral(3), new Numeral(2)),
-//         new Numeral(1),
-//         new Numeral(0)
-//       )
-//     ),
-//     // While test
-//     new VariableDeclaration(new Identifier("y"), new Numeral(0)),
-//     new While(
-//       new BinaryExp(">", new Numeral(10), new Identifier("y")),
-//       new Block([
-//         new Assignment(
-//           new Identifier("y"),
-//           new BinaryExp("+", new Numeral(1), new Identifier("y"))
-//         ),
-//       ])
-//     ),
-//     new PrintStatement(new Identifier("y")),
-//     // FunctionStatement test
-//     new VariableDeclaration(new Identifier("i"), new Numeral(0)),
-//     new FunctionStatement(
-//       new Identifier("plusFour"),
-//       [new Identifier("i")],
-//       new BinaryExp("+", new Identifier("z"), new Numeral(4))
-//     ),
-//     new Call(new Identifier("plusFour"), [new Identifier("i")]),
-//     new PrintStatement(new Identifier("i")),
-//   ])
-// );
-// interpret(sample);

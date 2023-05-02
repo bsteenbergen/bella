@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.1",
+    "assert-strict": "0.0.2",
     "mocha": "^10.2.0"
   }
 }
