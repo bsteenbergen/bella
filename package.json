@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "type": "module",
-  "main": "index.js",
+  "main": "bella.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha"
   },
   "repository": {
     "type": "git",
@@ -17,5 +17,13 @@
   "bugs": {
     "url": "https://github.com/bsteenbergen/Bella-Interpreter/issues"
   },
-  "homepage": "https://github.com/bsteenbergen/Bella-Interpreter#readme"
+  "homepage": "https://github.com/bsteenbergen/Bella-Interpreter#readme",
+  "dependencies": {
+    "@types/node": "^18.16.3",
+    "assert": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.1",
+    "mocha": "^10.2.0"
+  }
 }

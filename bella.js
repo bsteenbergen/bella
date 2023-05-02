@@ -1,7 +1,7 @@
-"use strict";
 // An interpreter for the Language Bella
 let memory = new Map();
-class Program {
+export let output = [];
+export class Program {
     constructor(body) {
         this.body = body;
     }
@@ -13,11 +13,11 @@ class Program {
         memory.set("sqrt", Math.sqrt);
         memory.set("π", Math.PI);
         memory.set("exp", Math.exp);
-        memory.set("ln", Math.LN10); // can also be Math.LN2 but I don't remember my logs
+        memory.set("ln", Math.LN10);
         return this.body.interpret();
     }
 }
-class Block {
+export class Block {
     constructor(statements) {
         this.statements = statements;
     }
@@ -27,7 +27,7 @@ class Block {
         }
     }
 }
-class VariableDeclaration {
+export class VariableDeclaration {
     constructor(id, initializer) {
         this.id = id;
         this.initializer = initializer;
@@ -39,7 +39,7 @@ class VariableDeclaration {
         memory.set(this.id.name, this.initializer.interpret());
     }
 }
-class Assignment {
+export class Assignment {
     constructor(target, source) {
         this.target = target;
         this.source = source;
@@ -51,7 +51,7 @@ class Assignment {
         memory.set(this.target.name, this.source.interpret());
     }
 }
-class PrintStatement {
+export class PrintStatement {
     constructor(expression) {
         this.expression = expression;
     }
@@ -59,7 +59,7 @@ class PrintStatement {
         console.log(this.expression.interpret());
     }
 }
-class While {
+export class While {
     constructor(expression, block) {
         this.expression = expression;
         this.block = block;
@@ -70,7 +70,7 @@ class While {
         }
     }
 }
-class FunctionStatement {
+export class FunctionStatement {
     constructor(id, args, expression) {
         this.id = id;
         this.args = args;
@@ -83,7 +83,7 @@ class FunctionStatement {
         ]);
     }
 }
-class BinaryExp {
+export class BinaryExp {
     constructor(operator, left, right) {
         this.operator = operator;
         this.left = left;
@@ -133,7 +133,7 @@ class BinaryExp {
         }
     }
 }
-class UnaryExp {
+export class UnaryExp {
     constructor(operator, operand) {
         this.operator = operator;
         this.operand = operand;
@@ -149,7 +149,7 @@ class UnaryExp {
         }
     }
 }
-class ConditionalExpression {
+export class ConditionalExpression {
     constructor(test, consequent, alternate) {
         this.test = test;
         this.consequent = consequent;
@@ -161,7 +161,7 @@ class ConditionalExpression {
             : this.alternate.interpret();
     }
 }
-class Call {
+export class Call {
     constructor(callee, args) {
         this.callee = callee;
         this.args = args;
@@ -174,7 +174,7 @@ class Call {
         return functionValue(this.args.map((arg) => arg.interpret()));
     }
 }
-class ArrayLiteral {
+export class ArrayLiteral {
     constructor(elements) {
         this.elements = elements;
     }
@@ -182,7 +182,7 @@ class ArrayLiteral {
         return this.elements.map((e) => e.interpret());
     }
 }
-class Subscript {
+export class Subscript {
     constructor(array, subscript) {
         this.array = array;
         this.subscript = subscript;
@@ -199,7 +199,7 @@ class Subscript {
         return arrayValue[subscriptValue];
     }
 }
-class Identifier {
+export class Identifier {
     constructor(name) {
         this.name = name;
     }
@@ -208,13 +208,10 @@ class Identifier {
         if (value === undefined) {
             throw new Error(`Unknown variable: ${this.name}`);
         }
-        else if (typeof value !== "number") {
-            throw new Error(`Variable is not a number: ${this.name}`);
-        }
         return value;
     }
 }
-class Numeral {
+export class Numeral {
     constructor(value) {
         this.value = value;
     }
@@ -222,7 +219,7 @@ class Numeral {
         return this.value;
     }
 }
-class Bool {
+export class Bool {
     constructor(value) {
         this.value = value;
     }
@@ -231,25 +228,48 @@ class Bool {
     }
 }
 // Run the interpreter
-function interpret(program) {
+export function interpret(program) {
+    output = [];
+    memory = new Map();
+    const oldConsoleLog = console.log;
+    console.log == ((s) => output.push(s));
     program.interpret();
+    console.log = oldConsoleLog;
 }
-const sample = new Program(new Block([
-    new VariableDeclaration(new Identifier("x"), new Numeral(100)),
-    new Assignment(new Identifier("x"), new UnaryExp("-", new Numeral(20))),
-    new PrintStatement(new BinaryExp("*", new Numeral(9), new Identifier("x"))),
-    new PrintStatement(new Call(new Identifier("sqrt"), [new Numeral(2)])),
-    new PrintStatement(new ConditionalExpression(new BinaryExp("<", new Numeral(3), new Numeral(2)), new Numeral(1), new Numeral(0))),
-    // While test
-    new VariableDeclaration(new Identifier("y"), new Numeral(0)),
-    new While(new BinaryExp(">", new Numeral(10), new Identifier("y")), new Block([
-        new Assignment(new Identifier("y"), new BinaryExp("+", new Numeral(1), new Identifier("y"))),
-    ])),
-    new PrintStatement(new Identifier("y")),
-    // FunctionStatement test
-    new VariableDeclaration(new Identifier("i"), new Numeral(0)),
-    new FunctionStatement(new Identifier("plusFour"), [new Identifier("i")], new BinaryExp("+", new Identifier("z"), new Numeral(4))),
-    new Call(new Identifier("plusFour"), [new Identifier("i")]),
-    new PrintStatement(new Identifier("i")),
-]));
-interpret(sample);
+// const sample: Program = new Program(
+//   new Block([
+//     new VariableDeclaration(new Identifier("x"), new Numeral(100)),
+//     new Assignment(new Identifier("x"), new UnaryExp("-", new Numeral(20))),
+//     new PrintStatement(new BinaryExp("*", new Numeral(9), new Identifier("x"))),
+//     new PrintStatement(new Call(new Identifier("sqrt"), [new Numeral(2)])),
+//     new PrintStatement(
+//       new ConditionalExpression(
+//         new BinaryExp(">", new Numeral(3), new Numeral(2)),
+//         new Numeral(1),
+//         new Numeral(0)
+//       )
+//     ),
+//     // While test
+//     new VariableDeclaration(new Identifier("y"), new Numeral(0)),
+//     new While(
+//       new BinaryExp(">", new Numeral(10), new Identifier("y")),
+//       new Block([
+//         new Assignment(
+//           new Identifier("y"),
+//           new BinaryExp("+", new Numeral(1), new Identifier("y"))
+//         ),
+//       ])
+//     ),
+//     new PrintStatement(new Identifier("y")),
+//     // FunctionStatement test
+//     new VariableDeclaration(new Identifier("i"), new Numeral(0)),
+//     new FunctionStatement(
+//       new Identifier("plusFour"),
+//       [new Identifier("i")],
+//       new BinaryExp("+", new Identifier("z"), new Numeral(4))
+//     ),
+//     new Call(new Identifier("plusFour"), [new Identifier("i")]),
+//     new PrintStatement(new Identifier("i")),
+//   ])
+// );
+// interpret(sample);
